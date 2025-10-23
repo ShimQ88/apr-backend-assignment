@@ -13,7 +13,7 @@ import com.apr.entity.FriendRequest;
 import com.apr.service.FriendService;
 
 @RestController
-@RequestMapping("/api/dev")
+@RequestMapping("/dev")
 public class DevController {
 
     private final FriendService service;

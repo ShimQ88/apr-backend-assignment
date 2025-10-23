@@ -15,4 +15,5 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
     where (f.fromUserId = :userId or f.toUserId = :userId)
   """)
   Page<Friend> findByUserId(@Param("userId") Long userId, Pageable pageable);
+  boolean existsByFromUserIdAndToUserId(Long fromUserId, Long toUserId);
 }
