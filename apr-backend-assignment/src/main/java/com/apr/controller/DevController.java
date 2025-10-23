@@ -13,7 +13,7 @@ import com.apr.entity.FriendRequest;
 import com.apr.service.FriendService;
 
 @RestController
-@RequestMapping("/api/friends")
+@RequestMapping("/api/dev")
 public class DevController {
 
     private final FriendService service;
@@ -22,7 +22,7 @@ public class DevController {
         this.service = service;
     }
 
-    @GetMapping
+     @GetMapping("/friends")
     public List<Friend> listFriends(@RequestParam Long userId,
                                     @RequestParam(defaultValue = "0") int page,
                                     @RequestParam(defaultValue = "5") int size) {
