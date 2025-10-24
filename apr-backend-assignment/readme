@@ -1,0 +1,328 @@
+# APR Backend Assignment — Friend API
+
+A Spring Boot backend service that implements a simple **Friend** system (send/accept/reject/unfriend, lists & mutuals), designed as a coding assignment. The project targets **Java 21** and **Spring Boot 3.5.x** and uses Gradle.
+
+> 🇰🇷 **한국어 안내는 아래에 이어집니다.** (English first, Korean follows.)
+
+---
+
+## Table of Contents
+
+* [Features](#features)
+* [Tech Stack](#tech-stack)
+* [Project Layout](#project-layout)
+* [Getting Started](#getting-started)
+
+  * [Prerequisites](#prerequisites)
+  * [Build & Run](#build--run)
+  * [Configuration](#configuration)
+* [API](#api)
+
+  * [Friend Requests](#friend-requests)
+  * [Friendship Management](#friendship-management)
+  * [Queries](#queries)
+  * [Error Model](#error-model)
+* [Rate Limiting (optional)](#rate-limiting-optional)
+* [Testing](#testing)
+* [Troubleshooting](#troubleshooting)
+* [License](#license)
+
+---
+
+## Features
+
+* Send/accept/reject friend requests
+* Unfriend
+* List my friends, pending requests, and mutual friends
+* Basic conflict/error handling (e.g., duplicate request, self request, already friends)
+* In-memory (H2) for local dev by default; switchable to PostgreSQL/MySQL via env/profiles
+
+> Note: Endpoint shapes below reflect the intended assignment design. If your implementation differs, adjust this README accordingly.
+
+## Tech Stack
+
+* **Language**: Java 21
+* **Framework**: Spring Boot 3.5.x (Spring Web, Validation, [Data JPA if used])
+* **Build**: Gradle
+* **DB**: H2 (dev) / PostgreSQL or MySQL (prod-ready)
+* **Test**: JUnit 5, Spring Boot Test
+
+## Project Layout
+
+```
+apr-backend-assignment/
+ ├─ build.gradle
+ ├─ settings.gradle
+ └─ src/
+    ├─ main/
+    │  ├─ java/... (domain, repository, service, controller)
+    │  └─ resources/
+    │     ├─ application.yml
+    │     └─ data.sql (optional seed)
+    └─ test/
+       └─ java/... (unit/integration tests)
+```
+
+## Getting Started
+
+### Prerequisites
+
+* JDK **21**
+* Gradle **8.x** (wrapper included)
+* (Optional) Docker & a local DB if not using H2
+
+### Build & Run
+
+```bash
+# clean build
+y ./gradlew clean build
+
+# run (dev profile)
+y ./gradlew bootRun
+# or
+java -jar build/libs/*SNAPSHOT.jar
+```
+
+The app starts at `http://localhost:8080`.
+
+### Configuration
+
+Default profile uses **H2**. To use PostgreSQL (example):
+
+```yaml
+# src/main/resources/application.yml
+spring:
+  datasource:
+    url: jdbc:h2:mem:frienddb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate.format_sql: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:postgresql://localhost:5432/frienddb
+    username: friend
+    password: secret
+  jpa:
+    hibernate:
+      ddl-auto: validate
+```
+
+Activate with `--spring.profiles.active=prod`.
+
+Env example:
+
+```bash
+SPRING_PROFILES_ACTIVE=prod \
+DB_URL=jdbc:postgresql://localhost:5432/frienddb \
+DB_USERNAME=friend \
+DB_PASSWORD=secret \
+java -jar build/libs/*SNAPSHOT.jar
+```
+
+## API
+
+**Base URL**: `http://localhost:8080`
+
+### Friend Requests
+
+* **Send request**
+
+  * `POST /api/friends/request`
+  * Body:
+
+    ```json
+    { "fromUserId": 10, "targetUserId": 1 }
+    ```
+  * Responses:
+
+    * `201 Created` – created
+    * `409 Conflict` – already requested / already friends / self request
+
+* **Accept request**
+
+  * `POST /api/friends/accept`
+  * Body:
+
+    ```json
+    { "fromUserId": 1, "targetUserId": 10 }
+    ```
+  * Responses: `200 OK`, `404 Not Found`, `409 Conflict`
+
+* **Reject request**
+
+  * `POST /api/friends/reject`
+  * Body:
+
+    ```json
+    { "fromUserId": 1, "targetUserId": 10 }
+    ```
+  * Responses: `200 OK`, `404 Not Found`
+
+### Friendship Management
+
+* **Unfriend**
+
+  * `DELETE /api/friends/remove`
+  * Body:
+
+    ```json
+    { "userId": 10, "targetUserId": 1 }
+    ```
+  * Responses: `200 OK`, `404 Not Found`
+
+### Queries
+
+* **My friends**
+
+  * `GET /api/friends/{userId}` → `[ {"id":2,"name":"..."}, ... ]`
+
+* **Pending received requests**
+
+  * `GET /api/friends/{userId}/pending` → list of incoming requests
+
+* **Mutual friends**
+
+  * `GET /api/friends/{userId}/mutual/{otherUserId}` → array of mutuals
+
+> If your implementation exposes search or pagination, document params such as `page`, `size`, `q`.
+
+### Error Model
+
+Typical error response example:
+
+```json
+{
+  "timestamp": "2025-10-24T12:00:00+09:00",
+  "path": "/api/friends/request",
+  "status": 409,
+  "error": "Conflict",
+  "code": "FRIEND_REQUEST_ALREADY_EXISTS",
+  "message": "A pending request already exists between the users."
+}
+```
+
+## Rate Limiting (optional)
+
+You may enable rate limiting with **Bucket4j**. Ensure the correct coordinates exist in `build.gradle` and that **mavenCentral()** is configured:
+
+```gradle
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation("io.github.bucket4j:bucket4j-core:8.10.1")
+}
+```
+
+If you previously used `com.github.vladimir-bukhtoyarov:bucket4j-core`, switch to `io.github.bucket4j:bucket4j-core`.
+
+## Testing
+
+```bash
+y ./gradlew test
+```
+
+Add integration tests under `src/test/java`. For controller tests, prefer `@SpringBootTest` or `@WebMvcTest` with mock services.
+
+## Troubleshooting
+
+* **Gradle cannot find Bucket4j**
+
+  * Ensure `mavenCentral()` is present.
+  * Use `io.github.bucket4j:bucket4j-core:8.10.1`.
+* **409 Conflict on friend request**
+
+  * Likely a duplicate or an existing friendship. Verify current state with the list endpoints.
+* **DB connection errors**
+
+  * Check JDBC URL, credentials, and active profile.
+
+## License
+
+This repository is for assignment/demo purposes. If you intend to reuse, please add a license file appropriate for your needs.
+
+---
+
+# 한국어 안내 (Korean)
+
+## 개요
+
+**Friend** 기능(요청/수락/거절/친구 끊기, 목록 & 공통 친구 조회)을 제공하는 Spring Boot 백엔드 서비스입니다. **Java 21**, **Spring Boot 3.5.x**, **Gradle** 기반이며, 로컬 개발은 H2(메모리 DB)로 동작하도록 설계했습니다.
+
+## 주요 기능
+
+* 친구 요청/수락/거절
+* 친구 끊기
+* 내 친구/보류 요청/공통 친구 조회
+* 중복 요청/자기 자신 요청/이미 친구인 경우 등의 예외 처리
+* 프로필로 H2(로컬) ↔ PostgreSQL/MySQL(운영) 전환 가능
+
+## 기술 스택
+
+* **언어**: Java 21
+* **프레임워크**: Spring Boot 3.5.x (Web, Validation, [Data JPA 사용 시])
+* **빌드**: Gradle
+* **DB**: H2(기본) / PostgreSQL 또는 MySQL(전환 가능)
+* **테스트**: JUnit 5, Spring Boot Test
+
+## 시작하기
+
+### 사전 준비
+
+* JDK 21, Gradle 8.x (래퍼 포함)
+* (선택) Docker & 로컬 DB
+
+### 빌드/실행
+
+```bash
+y ./gradlew clean build
+y ./gradlew bootRun
+# 또는
+java -jar build/libs/*SNAPSHOT.jar
+```
+
+기본 포트는 `8080`입니다.
+
+### 설정
+
+기본은 **H2** 사용. PostgreSQL 예시는 위 [Configuration](#configuration) 참고. 운영 프로필은 `--spring.profiles.active=prod`로 활성화합니다.
+
+## API 개요
+
+* **요청 보내기**: `POST /api/friends/request`
+* **요청 수락**: `POST /api/friends/accept`
+* **요청 거절**: `POST /api/friends/reject`
+* **친구 끊기**: `DELETE /api/friends/remove`
+* **내 친구 목록**: `GET /api/friends/{userId}`
+* **받은 보류 요청**: `GET /api/friends/{userId}/pending`
+* **공통 친구 조회**: `GET /api/friends/{userId}/mutual/{otherUserId}`
+
+요청/응답 예시와 오류 모델은 영어 섹션을 참고하세요. 실제 구현이 다를 수 있으니, 프로젝트에 맞춰 본 README를 수정해 주세요.
+
+## 속도 제한(Bucket4j) 관련
+
+`build.gradle`에 **mavenCentral()**가 등록되어 있고, 의존성은 다음을 권장합니다:
+
+```gradle
+implementation("io.github.bucket4j:bucket4j-core:8.10.1")
+```
+
+## 자주 겪는 문제
+
+* **Bucket4j 의존성 해석 실패** → 저장소/좌표 확인
+* **409 Conflict** → 중복 요청, 이미 친구 여부를 엔드포인트로 확인
+* **DB 연결 실패** → 프로필/URL/계정 정보 확인
+
+## 라이선스
+
+과제/데모용 저장소입니다. 외부 재사용 시 적합한 라이선스 파일을 추가해주세요.
