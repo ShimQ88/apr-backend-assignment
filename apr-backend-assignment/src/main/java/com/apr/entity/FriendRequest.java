@@ -8,10 +8,15 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
 @Table(
     name = "friend_requests",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uk_friend_request_pair",
+        columnNames = {"request_user_id", "target_user_id"}
+    ),
     indexes = {
         @Index(name = "idx_fr_requested_at", columnList = "requested_at"),
         @Index(name = "idx_fr_target_reqat", columnList = "target_user_id, requested_at DESC")

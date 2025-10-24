@@ -22,4 +22,5 @@ public interface FriendRequestRepository extends JpaRepository<FriendRequest, St
             @Param("since") Instant since,
             Pageable pageable
     );
+    boolean existsByRequestUserIdAndTargetUserId(Long requestUserId, Long targetUserId);
 }

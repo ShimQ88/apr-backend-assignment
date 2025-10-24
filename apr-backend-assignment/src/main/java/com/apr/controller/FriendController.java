@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,5 +43,27 @@ public class FriendController {
         Instant sinceInstant = TimeWindowParser.parse(since);
         List<FriendRequest> list = service.listIncomingRequests(userId, sinceInstant, limit);
         return list.stream().map(FriendRequestDto::new).collect(Collectors.toList());
+    }
+
+     // DTO 요청 바디
+    public static class FriendRequestCreate {
+        public Long fromUserId;
+        public Long targetUserId;
+    }
+
+    @PostMapping("/friends/request")
+    public FriendRequestDto createRequest(@RequestBody FriendRequestCreate body) {
+        try {
+            FriendRequest saved = service.sendFriendRequest(body.fromUserId, body.targetUserId);
+            return new FriendRequestDto(saved);
+        } catch (IllegalArgumentException e) {
+            // 400 잘못된 요청
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, e.getMessage(), e);
+        } catch (IllegalStateException e) {
+            // 409 충돌 (중복/이미 친구 등)
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT, e.getMessage(), e);
+        }
     }
 }

@@ -38,4 +38,36 @@ public class FriendService {
     public List<FriendRequest> listIncomingRequests(Long userId, Instant since, int limit) {
         return friendRequestRepo.findIncomingSince(userId, since, PageRequest.of(0, limit));
     }
+
+    public FriendRequest sendFriendRequest(Long fromUserId, Long targetUserId) {
+        // 1) 자기 자신 금지
+        if (fromUserId.equals(targetUserId)) {
+            throw new IllegalArgumentException("Cannot request friendship to yourself.");
+        }
+
+        // 2) 이미 친구인지(무방향) 확인
+        boolean alreadyFriends =
+                friendRepo.existsByFromUserIdAndToUserId(fromUserId, targetUserId)
+             || friendRepo.existsByFromUserIdAndToUserId(targetUserId, fromUserId);
+        if (alreadyFriends) {
+            throw new IllegalStateException("Users are already friends.");
+        }
+
+        // 3) 동일 대기 요청 있는지 확인 (from -> to)
+        if (friendRequestRepo.existsByRequestUserIdAndTargetUserId(fromUserId, targetUserId)) {
+            throw new IllegalStateException("A pending request already exists.");
+        }
+
+        // (선택) 교차 대기 요청 방지: 상대가 이미 보냈다면 굳이 또 만들지 않도록
+        if (friendRequestRepo.existsByRequestUserIdAndTargetUserId(targetUserId, fromUserId)) {
+            throw new IllegalStateException("Counter pending request exists.");
+        }
+
+        // 4) 생성
+        FriendRequest fr = new FriendRequest();
+        fr.setRequestUserId(fromUserId);
+        fr.setTargetUserId(targetUserId);
+        fr.setRequestedAt(Instant.now());
+        return friendRequestRepo.save(fr);
+    }
 }
