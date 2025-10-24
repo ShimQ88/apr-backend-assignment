@@ -1,0 +1,4 @@
+spring:
+  sql:
+    init:
+      mode: never   # dev 프로파일에서는 data.sql 실행하지 않음

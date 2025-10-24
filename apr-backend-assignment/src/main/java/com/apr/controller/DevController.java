@@ -22,7 +22,7 @@ public class DevController {
         this.service = service;
     }
 
-     @GetMapping("/friends")
+    //@GetMapping("/friends")
     public List<Friend> listFriends(@RequestParam Long userId,
                                     @RequestParam(defaultValue = "0") int page,
                                     @RequestParam(defaultValue = "5") int size) {

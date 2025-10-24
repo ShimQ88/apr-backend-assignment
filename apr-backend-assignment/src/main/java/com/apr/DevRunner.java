@@ -1,14 +1,16 @@
 package com.apr;
 
-import com.apr.service.FriendService;
+import java.time.Instant;
+
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
 import com.apr.entity.Friend;
 import com.apr.entity.FriendRequest;
 import com.apr.repository.FriendRepository;
 import com.apr.repository.FriendRequestRepository;
-import org.springframework.boot.ApplicationRunner;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import java.time.Instant;
+import com.apr.service.FriendService;
 
 @Configuration
 public class DevRunner {
@@ -52,5 +54,25 @@ public class DevRunner {
         r.setTargetUserId(to);
         r.setRequestedAt(Instant.parse(iso));
         return r;
+    }
+
+    private void saveFriendIfAbsent(FriendRepository repo, Long from, Long to, Instant at) {
+        if (!repo.existsByFromUserIdAndToUserId(from, to)) {
+            Friend f = new Friend();
+            f.setFromUserId(from);
+            f.setToUserId(to);
+            f.setApprovedAt(at);
+            repo.save(f);
+        }
+    }
+
+    private void saveReqIfAbsent(FriendRequestRepository repo, Long from, Long to, String iso) {
+        if (!repo.existsByRequestUserIdAndTargetUserId(from, to)) {
+            FriendRequest r = new FriendRequest();
+            r.setRequestUserId(from);
+            r.setTargetUserId(to);
+            r.setRequestedAt(Instant.parse(iso));
+            repo.save(r);
+        }
     }
 }
