@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.apr.entity.Friend;
 import com.apr.entity.FriendRequest;
@@ -23,51 +24,50 @@ public class FriendService {
         this.friendRequestRepo = friendRequestRepo;
     }
 
-    /**
-     * 친구 목록 조회 (최신순)
-     */
     public List<Friend> listFriends(Long userId, int page, int size) {
-        // approvedAt 최신순 보장
         var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "approvedAt"));
         return friendRepo.findByUserId(userId, pageable).getContent();
     }
 
-    /**
-     * 받은 친구 신청 목록 조회 (슬라이딩 윈도우 방식)
-     */
     public List<FriendRequest> listIncomingRequests(Long userId, Instant since, int limit) {
         return friendRequestRepo.findIncomingSince(userId, since, PageRequest.of(0, limit));
     }
 
-    public FriendRequest sendFriendRequest(Long fromUserId, Long targetUserId) {
-        // 1) 자기 자신 금지
-        if (fromUserId.equals(targetUserId)) {
-            throw new IllegalArgumentException("Cannot request friendship to yourself.");
+    @Transactional
+    public Friend acceptFriendRequest(Long requestUserId, Long targetUserId) {
+        if (requestUserId.equals(targetUserId)) {
+            throw new IllegalArgumentException("Cannot accept your own request.");
         }
 
-        // 2) 이미 친구인지(무방향) 확인
+        var pending = friendRequestRepo.findByRequestUserIdAndTargetUserId(requestUserId, targetUserId)
+                .orElseThrow(() -> new IllegalStateException("Pending request not found."));
+
         boolean alreadyFriends =
-                friendRepo.existsByFromUserIdAndToUserId(fromUserId, targetUserId)
-             || friendRepo.existsByFromUserIdAndToUserId(targetUserId, fromUserId);
+                friendRepo.existsByFromUserIdAndToUserId(requestUserId, targetUserId) ||
+                friendRepo.existsByFromUserIdAndToUserId(targetUserId, requestUserId);
         if (alreadyFriends) {
             throw new IllegalStateException("Users are already friends.");
         }
 
-        // 3) 동일 대기 요청 있는지 확인 (from -> to)
-        if (friendRequestRepo.existsByRequestUserIdAndTargetUserId(fromUserId, targetUserId)) {
-            throw new IllegalStateException("A pending request already exists.");
+        Friend f = new Friend();
+        f.setFromUserId(requestUserId);
+        f.setToUserId(targetUserId);
+        f.setApprovedAt(Instant.now());
+        Friend saved = friendRepo.save(f);
+
+        friendRequestRepo.delete(pending); // or deleteByFromTo(requestUserId, targetUserId)
+        return saved;
+    }
+
+    @Transactional
+    public void rejectFriendRequest(Long requestUserId, Long targetUserId) {
+        if (requestUserId.equals(targetUserId)) {
+            throw new IllegalArgumentException("Cannot reject your own request.");
         }
 
-        // (선택) 교차 대기 요청 방지: 상대가 이미 보냈다면 굳이 또 만들지 않도록
-        if (friendRequestRepo.existsByRequestUserIdAndTargetUserId(targetUserId, fromUserId)) {
-            throw new IllegalStateException("Counter pending request exists.");
-        }
+        var pending = friendRequestRepo.findByRequestUserIdAndTargetUserId(requestUserId, targetUserId)
+                .orElseThrow(() -> new IllegalStateException("Pending request not found."));
 
-        // 4) 생성
-        FriendRequest fr = new FriendRequest();
-        fr.setRequestUserId(fromUserId);
-        fr.setTargetUserId(targetUserId);
-        fr.setRequestedAt(Instant.now());
-        return friendRequestRepo.save(fr);
+        friendRequestRepo.delete(pending); // or deleteByFromTo(requestUserId, targetUserId)
     }
 }
